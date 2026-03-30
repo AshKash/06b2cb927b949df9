@@ -399,6 +399,11 @@ function chooseCrewManifestResponse(prompt, resumeProfile) {
 
   if (normalized.includes("summary") && normalized.includes("skills")) {
     text = resumeProfile.skills_summary;
+  } else if (
+    normalized.includes("granted access to neon") ||
+    (normalized.includes("good fit") && normalized.includes("mission"))
+  ) {
+    text = resumeProfile.mission_fit_summary;
   } else if (normalized.includes("recent deployment")) {
     text = resumeProfile.recent_deployment_summary;
   } else if (normalized.includes("education")) {
