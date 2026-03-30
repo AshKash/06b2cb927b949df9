@@ -17,7 +17,7 @@ NEON_CODE=your-neon-code
 NEON_NAME=Your Name
 NEON_EMAIL=you@example.com
 NEON_PHONE=555-555-5555
-NEON_RESUME_PROFILE_PATH=resume-profile.json
+NEON_RESUME_PROFILE_PATH=resume-profile.local.json
 NEON_AUTO_HANDSHAKE=1
 ```
 
@@ -54,6 +54,7 @@ Behavior:
 - Reconstructs challenge prompts by sorting fragments by `timestamp`
 - Loads `.env` values for Neon Code and profile details
 - Loads a resume profile JSON for crew-manifest prompts
+- Tracks a sanitized [resume-profile.json](/Users/ashwin/repos/interviews/neonhealth/resume-profile.json) example and keeps local personal data in ignored `resume-profile.local.json`
 - Can auto-answer the full known challenge deterministically when `--auto-handshake` is enabled
 
 Deterministic coverage:
@@ -70,6 +71,6 @@ Current observation:
 - A direct websocket connect to `wss://neonhealth.software/agent-puzzle/challenge` succeeded with only the `Origin: https://puzzle.neonhealth.com` header and immediately returned a challenge frame.
 - The first checkpoint is stable in wording but randomizes the two frequencies, so `--auto-handshake` extracts and returns the AI-co-pilot frequency.
 - The second deterministic checkpoint asks for the vessel authorization code followed by `#`, which the client answers from `NEON_CODE`.
-- Crew-manifest prompts are answered deterministically from `resume-profile.json`.
+- Crew-manifest prompts are answered deterministically from the configured resume profile JSON.
 - Final verification is answered from the exact prior `speak_text` responses stored in session history.
 - A verified successful run is recorded in `session-logs/2026-03-30T19-30-34-005Z.jsonl`.

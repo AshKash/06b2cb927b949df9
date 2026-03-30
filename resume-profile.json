@@ -1,0 +1,44 @@
+{
+  "name": "Your Name",
+  "email": "you@example.com",
+  "phone": "555-555-5555",
+  "website": "example.com",
+  "linkedin": "linkedin.com/in/your-profile",
+  "summary": "Veteran backend and AI systems engineer focused on reliable automation, large-scale services, and production-grade tooling.",
+  "skills_summary": "Backend and AI systems engineer with experience in orchestration, retrieval, APIs, reliability tradeoffs, production services, and technical leadership.",
+  "experience_summary": "Built production backend and ML systems across large companies and startups, then applied that experience to grounded agentic automation and workflow tooling.",
+  "education_summary": "MS in Computer Science and a BS in a technical engineering discipline.",
+  "projects_summary": "Built grounded agent systems that combine model reasoning with deterministic browser automation and production-minded execution.",
+  "best_project_summary": "Best mission: building an agentic copilot that blends LLM reasoning with deterministic control, persistent state, and reliable multi-step execution.",
+  "recent_deployment_summary": "Current deployment: shipping grounded agent systems that fuse model planning with deterministic automation, durable memory, and production-minded execution.",
+  "mission_fit_summary": "Grant access: this engineer has deep experience building production AI and backend systems and is a strong fit for a fast-moving automation mission.",
+  "skills": [
+    "LLM orchestration",
+    "context engineering",
+    "retrieval",
+    "ranking",
+    "backend APIs",
+    "system design",
+    "reliability",
+    "Python",
+    "TypeScript"
+  ],
+  "education": [
+    "Example University - MS, Computer Science",
+    "Example Institute - BS, Engineering"
+  ],
+  "experience": [
+    {
+      "company": "Example Startup",
+      "role": "Founder / Engineer",
+      "years": "2024 - Present",
+      "summary": "Built grounded agent workflows that combine model reasoning with deterministic automation."
+    },
+    {
+      "company": "Example Big Tech",
+      "role": "Staff Engineer",
+      "years": "2018 - 2024",
+      "summary": "Led backend and ML systems spanning search, recommendation, data pipelines, and production reliability."
+    }
+  ]
+}

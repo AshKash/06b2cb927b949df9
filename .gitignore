@@ -4,4 +4,4 @@ session-logs/
 .env
 npm-debug.log*
 *_Resume_*.pdf
-resume-profile.json
+resume-profile.local.json
