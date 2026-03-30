@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "debug-client": "node scripts/debug-client.mjs",
+    "neon-client": "node scripts/neon-client.mjs",
     "test": "node --test"
   },
   "dependencies": {

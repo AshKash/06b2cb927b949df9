@@ -1,6 +1,6 @@
 # Neon Puzzle Tools
 
-## Debug Client
+## Neon Client
 
 Install dependencies:
 
@@ -28,10 +28,10 @@ NEON_PHONE=555-555-5555
 NEON_RESUME_PROFILE_PATH=resume-profile.local.json
 ```
 
-Run the interactive websocket client:
+Run the client:
 
 ```bash
-npm run debug-client
+npm run neon-client
 ```
 
 Behavior:
@@ -50,7 +50,7 @@ Code layout:
 
 - [src/protocol.mjs](/Users/ashwin/repos/interviews/neonhealth/src/protocol.mjs) contains prompt parsing, tokenization, and pure protocol helpers
 - [src/automation.mjs](/Users/ashwin/repos/interviews/neonhealth/src/automation.mjs) contains the deterministic response router and session state
-- [src/debug-client.mjs](/Users/ashwin/repos/interviews/neonhealth/src/debug-client.mjs) contains websocket and REPL wiring
+- [src/neon-client.mjs](/Users/ashwin/repos/interviews/neonhealth/src/neon-client.mjs) contains websocket process wiring
 - [test/protocol.test.mjs](/Users/ashwin/repos/interviews/neonhealth/test/protocol.test.mjs) and [test/automation.test.mjs](/Users/ashwin/repos/interviews/neonhealth/test/automation.test.mjs) cover the main parsing and routing paths
 
 Deterministic coverage:

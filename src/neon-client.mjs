@@ -7,7 +7,7 @@ import { reconstructMessage, safeParseJson, stringifyJson } from "./protocol.mjs
 
 export function printUsage() {
   console.log(`Usage:
-  npm run debug-client -- [options]
+  npm run neon-client -- [options]
 
 Options:
   --help                    Show this help
@@ -26,7 +26,7 @@ Environment variables:
 }
 
 function printBanner(options, logPath) {
-  console.log("NEON debug client");
+  console.log("NEON client");
   console.log(`URL: ${options.url}`);
   console.log(`Origin: ${options.origin}`);
   console.log(`Cookie header: ${options.cookie ? "set" : "not set"}`);
