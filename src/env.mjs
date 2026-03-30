@@ -43,15 +43,13 @@ export function parseArgs(argv) {
       phone: process.env.NEON_PHONE || "",
     },
     resumeProfilePath: process.env.NEON_RESUME_PROFILE_PATH || "",
-    autoHandshake:
-      process.env.NEON_AUTO_HANDSHAKE === "1" ||
-      process.env.NEON_AUTO_FIRST_HANDSHAKE === "1",
+    autoHandshake: process.env.NEON_AUTO_HANDSHAKE === "1",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
 
-    if (arg === "--auto-handshake" || arg === "--auto-first-handshake") {
+    if (arg === "--auto-handshake") {
       options.autoHandshake = true;
       continue;
     }
