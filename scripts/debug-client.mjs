@@ -13,6 +13,7 @@ function parseArgs(argv) {
     origin: process.env.NEON_WS_ORIGIN || DEFAULT_ORIGIN,
     cookie: process.env.NEON_WS_COOKIE || "",
     logFile: process.env.NEON_WS_LOG_FILE || "",
+    autoFirstHandshake: process.env.NEON_AUTO_FIRST_HANDSHAKE === "1",
     headers: {},
   };
 
@@ -63,6 +64,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--auto-first-handshake") {
+      options.autoFirstHandshake = true;
+      continue;
+    }
+
     if (arg === "--help") {
       printUsage();
       process.exit(0);
@@ -85,6 +91,7 @@ Options:
   --cookie-file <path>      Read Cookie header value from a file
   --header "K: V"           Add any extra header, repeatable
   --log-file <path>         Write JSONL session log to a file
+  --auto-first-handshake    Auto-answer the first known frequency prompt
   --help                    Show this help
 
 Environment variables:
@@ -92,6 +99,7 @@ Environment variables:
   NEON_WS_ORIGIN
   NEON_WS_COOKIE
   NEON_WS_LOG_FILE
+  NEON_AUTO_FIRST_HANDSHAKE=1
 
 Interactive commands:
   /help
@@ -164,6 +172,7 @@ function printBanner(options, logPath) {
   console.log(`URL: ${options.url}`);
   console.log(`Origin: ${options.origin}`);
   console.log(`Cookie header: ${options.cookie ? "set" : "not set"}`);
+  console.log(`Auto first handshake: ${options.autoFirstHandshake ? "on" : "off"}`);
   console.log(`Session log: ${logPath}`);
   console.log('Type "/help" for commands.');
 }
@@ -191,6 +200,33 @@ function printInbound(parsed, raw) {
     console.log("\n< reconstructed prompt");
     console.log(reconstructed);
   }
+}
+
+function detectFirstHandshakeFrequency(prompt) {
+  if (typeof prompt !== "string") {
+    return null;
+  }
+
+  if (
+    !prompt.includes("Incoming vessel detected.") ||
+    !prompt.includes("If your pilot is an AI co-pilot built by an excellent software engineer") ||
+    !prompt.includes("All other vessels, respond on frequency")
+  ) {
+    return null;
+  }
+
+  const match = prompt.match(
+    /respond on frequency\s+(\d+)\.\s+All other vessels,\s+respond on frequency\s+(\d+)\.?/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    aiPilotFrequency: match[1],
+    otherFrequency: match[2],
+  };
 }
 
 function normalizeOutgoing(command, history) {
@@ -246,6 +282,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const logger = createLogger(options.logFile);
   const history = [];
+  let autoFirstHandshakeSent = false;
 
   printBanner(options, logger.target);
 
@@ -262,6 +299,34 @@ async function main() {
   const pushHistory = (event) => {
     history.push(event);
     logger.write(event);
+  };
+
+  const sendPayload = (payload, metadata = {}) => {
+    const parsed = safeParseJson(payload);
+    if (!parsed.ok) {
+      console.error(`Invalid JSON: ${parsed.error.message}`);
+      return false;
+    }
+
+    if (socket.readyState !== WebSocket.OPEN) {
+      console.error("Socket is not open.");
+      return false;
+    }
+
+    socket.send(payload);
+
+    pushHistory({
+      timestamp: nowIso(),
+      direction: "outbound",
+      kind: "message",
+      raw: payload,
+      parsed: parsed.value,
+      ...metadata,
+    });
+
+    console.log("\n> outbound");
+    console.log(stringifyJson(parsed.value));
+    return true;
   };
 
   socket.on("open", () => {
@@ -296,6 +361,29 @@ async function main() {
     });
 
     printInbound(parsed, raw);
+
+    if (
+      options.autoFirstHandshake &&
+      !autoFirstHandshakeSent &&
+      reconstructed
+    ) {
+      const firstHandshake = detectFirstHandshakeFrequency(reconstructed);
+      if (firstHandshake) {
+        autoFirstHandshakeSent = true;
+        sendPayload(
+          JSON.stringify({
+            type: "enter_digits",
+            digits: firstHandshake.aiPilotFrequency,
+          }),
+          {
+            automated: true,
+            automationKind: "first-handshake",
+            matchedPrompt: reconstructed,
+          },
+        );
+      }
+    }
+
     rl.prompt();
   });
 
@@ -337,31 +425,7 @@ async function main() {
       return;
     }
 
-    const parsed = safeParseJson(normalized.payload);
-    if (!parsed.ok) {
-      console.error(`Invalid JSON: ${parsed.error.message}`);
-      rl.prompt();
-      return;
-    }
-
-    if (socket.readyState !== WebSocket.OPEN) {
-      console.error("Socket is not open.");
-      rl.prompt();
-      return;
-    }
-
-    socket.send(normalized.payload);
-
-    pushHistory({
-      timestamp: nowIso(),
-      direction: "outbound",
-      kind: "message",
-      raw: normalized.payload,
-      parsed: parsed.value,
-    });
-
-    console.log("\n> outbound");
-    console.log(stringifyJson(parsed.value));
+    sendPayload(normalized.payload);
     rl.prompt();
   });
 
