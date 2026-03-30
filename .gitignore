@@ -3,3 +3,4 @@ session-logs/
 .npm-cache/
 .env
 npm-debug.log*
+*_Resume_*.pdf
