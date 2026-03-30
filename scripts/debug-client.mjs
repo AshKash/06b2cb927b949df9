@@ -434,6 +434,103 @@ function chooseCrewManifestResponse(prompt, resumeProfile) {
   return text;
 }
 
+function parseOrdinal(value) {
+  const numeric = Number.parseInt(value, 10);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function parseKnowledgeArchivePrompt(prompt) {
+  if (typeof prompt !== "string") {
+    return null;
+  }
+
+  if (
+    !prompt.includes("knowledge archive") ||
+    !prompt.includes("entry summary") ||
+    !prompt.includes("Wikipedia API")
+  ) {
+    return null;
+  }
+
+  const ordinalMatch = prompt.match(/\b(\d+)(?:st|nd|rd|th)\s+word\b/i);
+  const titleMatch = prompt.match(/entry summary for ['"]([^'"]+)['"]/i);
+
+  if (!ordinalMatch || !titleMatch) {
+    return null;
+  }
+
+  const ordinal = parseOrdinal(ordinalMatch[1]);
+  const title = titleMatch[1];
+  if (!ordinal || !title) {
+    return null;
+  }
+
+  return { ordinal, title };
+}
+
+function normalizeWikipediaTitle(title) {
+  return title.trim().replace(/\s+/g, "_");
+}
+
+function tokenizeWikipediaExtract(extract) {
+  return extract
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replace(/^[“"'([{]+|[”"')\]}.,:;!?]+$/g, ""))
+    .filter(Boolean);
+}
+
+async function fetchWikipediaSummary(title, cache) {
+  const normalizedTitle = normalizeWikipediaTitle(title);
+  if (cache.has(normalizedTitle)) {
+    return cache.get(normalizedTitle);
+  }
+
+  const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(normalizedTitle)}`;
+  const response = await fetch(url, {
+    headers: {
+      "user-agent": "neonhealth-puzzle/0.1",
+      accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Wikipedia summary fetch failed for ${normalizedTitle}: ${response.status} ${response.statusText}`);
+  }
+
+  const payload = await response.json();
+  if (!payload.extract || typeof payload.extract !== "string") {
+    throw new Error(`Wikipedia summary missing extract for ${normalizedTitle}`);
+  }
+
+  cache.set(normalizedTitle, payload);
+  return payload;
+}
+
+async function getKnowledgeArchiveWord(prompt, cache) {
+  const parsed = parseKnowledgeArchivePrompt(prompt);
+  if (!parsed) {
+    return null;
+  }
+
+  const summary = await fetchWikipediaSummary(parsed.title, cache);
+  const tokens = tokenizeWikipediaExtract(summary.extract);
+  const index = parsed.ordinal - 1;
+  if (index < 0 || index >= tokens.length) {
+    throw new Error(
+      `Requested word ${parsed.ordinal} out of range for ${parsed.title}; extract only has ${tokens.length} tokens`,
+    );
+  }
+
+  return {
+    title: parsed.title,
+    ordinal: parsed.ordinal,
+    extract: summary.extract,
+    token: tokens[index],
+    tokenCount: tokens.length,
+  };
+}
+
 function normalizeOutgoing(command, history) {
   if (!command) {
     return null;
@@ -487,11 +584,13 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const logger = createLogger(options.logFile);
   const resumeProfile = loadResumeProfile(options.resumeProfilePath);
+  const wikipediaCache = new Map();
   const history = [];
   let autoFirstHandshakeSent = false;
   let autoVesselAuthorizationSent = false;
   let autoMathSentCount = 0;
   let autoCrewSentCount = 0;
+  let autoKnowledgeSentCount = 0;
 
   printBanner(options, logger.target);
 
@@ -550,7 +649,7 @@ async function main() {
     rl.prompt();
   });
 
-  socket.on("message", (data, isBinary) => {
+  socket.on("message", async (data, isBinary) => {
     const raw = isBinary ? data.toString("base64") : data.toString("utf8");
     const parsed = isBinary ? { ok: false } : safeParseJson(raw);
     const reconstructed =
@@ -680,6 +779,44 @@ async function main() {
           error: error.message,
         });
         console.error(`\nCrew manifest automation failed: ${error.message}`);
+      }
+    }
+
+    if (options.autoHandshake && reconstructed) {
+      try {
+        const knowledgeResponse = await getKnowledgeArchiveWord(
+          reconstructed,
+          wikipediaCache,
+        );
+        if (knowledgeResponse) {
+          autoKnowledgeSentCount += 1;
+          sendPayload(
+            JSON.stringify({
+              type: "speak_text",
+              text: knowledgeResponse.token,
+            }),
+            {
+              automated: true,
+              automationKind: "knowledge-archive",
+              matchedPrompt: reconstructed,
+              title: knowledgeResponse.title,
+              ordinal: knowledgeResponse.ordinal,
+              token: knowledgeResponse.token,
+              tokenCount: knowledgeResponse.tokenCount,
+              sequence: autoKnowledgeSentCount,
+            },
+          );
+        }
+      } catch (error) {
+        pushHistory({
+          timestamp: nowIso(),
+          direction: "local",
+          kind: "automation_error",
+          automationKind: "knowledge-archive",
+          matchedPrompt: reconstructed,
+          error: error.message,
+        });
+        console.error(`\nKnowledge archive automation failed: ${error.message}`);
       }
     }
 
