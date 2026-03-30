@@ -11,17 +11,6 @@ export function printUsage() {
   npm run debug-client -- [options]
 
 Options:
-  --url <wss-url>           Override websocket URL
-  --origin <origin>         Set Origin header
-  --cookie <cookie-string>  Set Cookie header directly
-  --cookie-file <path>      Read Cookie header value from a file
-  --header "K: V"           Add any extra header, repeatable
-  --log-file <path>         Write JSONL session log to a file
-  --neon-code <code>        Neon Code used for vessel authorization prompts
-  --name <full-name>        Profile name override
-  --email <email>           Profile email override
-  --phone <phone>           Profile phone override
-  --resume-profile <path>   Resume profile JSON for crew-manifest prompts
   --auto-handshake          Auto-answer known deterministic handshake prompts
   --help                    Show this help
 

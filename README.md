@@ -19,6 +19,8 @@ The client loads `.env` from the repo root automatically.
 Example `.env`:
 
 ```bash
+NEON_WS_URL=wss://neonhealth.software/agent-puzzle/challenge
+NEON_WS_ORIGIN=https://puzzle.neonhealth.com
 NEON_CODE=your-neon-code
 NEON_NAME=Your Name
 NEON_EMAIL=you@example.com
@@ -33,15 +35,10 @@ Run the interactive websocket client:
 npm run debug-client
 ```
 
-Optional flags:
+Optional flag:
 
 ```bash
-npm run debug-client -- --origin https://puzzle.neonhealth.com
-npm run debug-client -- --log-file session-logs/manual.jsonl
-npm run debug-client -- --header "X-Foo: bar"
 npm run debug-client -- --auto-handshake
-npm run debug-client -- --auto-first-handshake
-npm run debug-client -- --resume-profile resume-profile.json --auto-handshake
 ```
 
 Interactive commands:
@@ -59,6 +56,7 @@ Behavior:
 - Pretty-prints inbound JSON
 - Reconstructs challenge prompts by sorting fragments by `timestamp`
 - Loads `.env` values for Neon Code and profile details
+- Loads websocket URL and origin from `.env`
 - Loads a resume profile JSON for crew-manifest prompts
 - Tracks a sanitized [resume-profile.json](/Users/ashwin/repos/interviews/neonhealth/resume-profile.json) example and keeps local personal data in ignored `resume-profile.local.json`
 - Can auto-answer the full known challenge deterministically when `--auto-handshake` is enabled

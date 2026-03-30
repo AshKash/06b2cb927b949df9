@@ -46,85 +46,10 @@ export function parseArgs(argv) {
     autoHandshake:
       process.env.NEON_AUTO_HANDSHAKE === "1" ||
       process.env.NEON_AUTO_FIRST_HANDSHAKE === "1",
-    headers: {},
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    const next = argv[index + 1];
-
-    if (arg === "--url" && next) {
-      options.url = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--origin" && next) {
-      options.origin = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--cookie" && next) {
-      options.cookie = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--cookie-file" && next) {
-      options.cookie = fs.readFileSync(next, "utf8").trim();
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--log-file" && next) {
-      options.logFile = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--neon-code" && next) {
-      options.neonCode = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--name" && next) {
-      options.profile.name = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--email" && next) {
-      options.profile.email = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--phone" && next) {
-      options.profile.phone = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--resume-profile" && next) {
-      options.resumeProfilePath = next;
-      index += 1;
-      continue;
-    }
-
-    if (arg === "--header" && next) {
-      const separator = next.indexOf(":");
-      if (separator === -1) {
-        throw new Error(`Invalid header format: ${next}`);
-      }
-
-      const name = next.slice(0, separator).trim();
-      const value = next.slice(separator + 1).trim();
-      options.headers[name] = value;
-      index += 1;
-      continue;
-    }
 
     if (arg === "--auto-handshake" || arg === "--auto-first-handshake") {
       options.autoHandshake = true;
@@ -144,7 +69,6 @@ export function parseArgs(argv) {
 export function buildHeaders(options) {
   const headers = {
     Origin: options.origin,
-    ...options.headers,
   };
 
   if (options.cookie) {
