@@ -8,6 +8,8 @@ Install dependencies:
 npm install --cache .npm-cache
 ```
 
+The client loads `.env` from the repo root automatically.
+
 Run the interactive websocket client:
 
 ```bash
@@ -20,7 +22,7 @@ Optional flags:
 npm run debug-client -- --origin https://puzzle.neonhealth.com
 npm run debug-client -- --log-file session-logs/manual.jsonl
 npm run debug-client -- --header "X-Foo: bar"
-npm run debug-client -- --auto-first-handshake
+npm run debug-client -- --auto-handshake
 ```
 
 Interactive commands:
@@ -37,9 +39,11 @@ Behavior:
 - Logs every inbound and outbound event to `session-logs/*.jsonl`
 - Pretty-prints inbound JSON
 - Reconstructs challenge prompts by sorting fragments by `timestamp`
-- Can auto-answer the first known handshake prompt when `--auto-first-handshake` is enabled
+- Loads `.env` values for Neon Code and profile details
+- Can auto-answer known deterministic handshake prompts when `--auto-handshake` is enabled
 
 Current observation:
 
 - A direct websocket connect to `wss://neonhealth.software/agent-puzzle/challenge` succeeded with only the `Origin: https://puzzle.neonhealth.com` header and immediately returned a challenge frame.
-- The first checkpoint is stable in wording but randomizes the two frequencies, so `--auto-first-handshake` extracts and returns the AI-co-pilot frequency.
+- The first checkpoint is stable in wording but randomizes the two frequencies, so `--auto-handshake` extracts and returns the AI-co-pilot frequency.
+- The second deterministic checkpoint asks for the vessel authorization code followed by `#`, which the client answers from `NEON_CODE`.

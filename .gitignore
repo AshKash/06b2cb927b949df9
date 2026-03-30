@@ -1,4 +1,5 @@
 node_modules/
 session-logs/
 .npm-cache/
+.env
 npm-debug.log*

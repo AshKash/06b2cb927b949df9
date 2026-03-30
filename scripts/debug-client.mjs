@@ -2,10 +2,38 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import process from "node:process";
+import vm from "node:vm";
 import WebSocket from "ws";
 
 const DEFAULT_URL = "wss://neonhealth.software/agent-puzzle/challenge";
 const DEFAULT_ORIGIN = "https://puzzle.neonhealth.com";
+
+loadEnvFile();
+
+function loadEnvFile(envPath = path.join(process.cwd(), ".env")) {
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const raw = fs.readFileSync(envPath, "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separator = trimmed.indexOf("=");
+    if (separator === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (!(key in process.env)) {
+      process.env[key] = value;
+    }
+  }
+}
 
 function parseArgs(argv) {
   const options = {
@@ -13,7 +41,15 @@ function parseArgs(argv) {
     origin: process.env.NEON_WS_ORIGIN || DEFAULT_ORIGIN,
     cookie: process.env.NEON_WS_COOKIE || "",
     logFile: process.env.NEON_WS_LOG_FILE || "",
-    autoFirstHandshake: process.env.NEON_AUTO_FIRST_HANDSHAKE === "1",
+    neonCode: process.env.NEON_CODE || "",
+    profile: {
+      name: process.env.NEON_NAME || "",
+      email: process.env.NEON_EMAIL || "",
+      phone: process.env.NEON_PHONE || "",
+    },
+    autoHandshake:
+      process.env.NEON_AUTO_HANDSHAKE === "1" ||
+      process.env.NEON_AUTO_FIRST_HANDSHAKE === "1",
     headers: {},
   };
 
@@ -51,6 +87,30 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--neon-code" && next) {
+      options.neonCode = next;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--name" && next) {
+      options.profile.name = next;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--email" && next) {
+      options.profile.email = next;
+      index += 1;
+      continue;
+    }
+
+    if (arg === "--phone" && next) {
+      options.profile.phone = next;
+      index += 1;
+      continue;
+    }
+
     if (arg === "--header" && next) {
       const separator = next.indexOf(":");
       if (separator === -1) {
@@ -64,8 +124,8 @@ function parseArgs(argv) {
       continue;
     }
 
-    if (arg === "--auto-first-handshake") {
-      options.autoFirstHandshake = true;
+    if (arg === "--auto-handshake" || arg === "--auto-first-handshake") {
+      options.autoHandshake = true;
       continue;
     }
 
@@ -91,7 +151,11 @@ Options:
   --cookie-file <path>      Read Cookie header value from a file
   --header "K: V"           Add any extra header, repeatable
   --log-file <path>         Write JSONL session log to a file
-  --auto-first-handshake    Auto-answer the first known frequency prompt
+  --neon-code <code>        Neon Code used for vessel authorization prompts
+  --name <full-name>        Profile name override
+  --email <email>           Profile email override
+  --phone <phone>           Profile phone override
+  --auto-handshake          Auto-answer known deterministic handshake prompts
   --help                    Show this help
 
 Environment variables:
@@ -99,7 +163,11 @@ Environment variables:
   NEON_WS_ORIGIN
   NEON_WS_COOKIE
   NEON_WS_LOG_FILE
-  NEON_AUTO_FIRST_HANDSHAKE=1
+  NEON_CODE
+  NEON_NAME
+  NEON_EMAIL
+  NEON_PHONE
+  NEON_AUTO_HANDSHAKE=1
 
 Interactive commands:
   /help
@@ -172,7 +240,11 @@ function printBanner(options, logPath) {
   console.log(`URL: ${options.url}`);
   console.log(`Origin: ${options.origin}`);
   console.log(`Cookie header: ${options.cookie ? "set" : "not set"}`);
-  console.log(`Auto first handshake: ${options.autoFirstHandshake ? "on" : "off"}`);
+  console.log(`Neon code: ${options.neonCode ? "set" : "not set"}`);
+  console.log(`Profile name: ${options.profile.name ? "set" : "not set"}`);
+  console.log(`Profile email: ${options.profile.email ? "set" : "not set"}`);
+  console.log(`Profile phone: ${options.profile.phone ? "set" : "not set"}`);
+  console.log(`Auto handshake: ${options.autoHandshake ? "on" : "off"}`);
   console.log(`Session log: ${logPath}`);
   console.log('Type "/help" for commands.');
 }
@@ -229,6 +301,56 @@ function detectFirstHandshakeFrequency(prompt) {
   };
 }
 
+function detectVesselAuthorizationPrompt(prompt) {
+  if (typeof prompt !== "string") {
+    return false;
+  }
+
+  return (
+    prompt.includes("vessel authorization code") &&
+    prompt.includes("followed by the pound key")
+  );
+}
+
+function extractMathExpression(prompt) {
+  if (typeof prompt !== "string" || !prompt.includes("Math.floor")) {
+    return null;
+  }
+
+  const afterColon = prompt.includes(":")
+    ? prompt.slice(prompt.lastIndexOf(":") + 1).trim()
+    : prompt.trim();
+
+  const exactMatch = afterColon.match(
+    /(Math\.floor\([^]+?\)(?:\s*[%+\-*/]\s*\d+)*)\s*$/u,
+  );
+  if (exactMatch) {
+    return exactMatch[1];
+  }
+
+  const fallback = prompt.match(
+    /(Math\.floor\([^]+?\)(?:\s*[%+\-*/]\s*\d+)*)/u,
+  );
+  return fallback ? fallback[1] : null;
+}
+
+function evaluateMathExpression(expression) {
+  if (!expression) {
+    return null;
+  }
+
+  const result = vm.runInNewContext(expression, { Math }, { timeout: 50 });
+  if (typeof result !== "number" || !Number.isFinite(result)) {
+    throw new Error(`Expression did not evaluate to a finite number: ${expression}`);
+  }
+
+  if (!Number.isInteger(result)) {
+    throw new Error(`Expression did not evaluate to an integer: ${expression}`);
+  }
+
+  return result;
+}
+
 function normalizeOutgoing(command, history) {
   if (!command) {
     return null;
@@ -283,6 +405,8 @@ async function main() {
   const logger = createLogger(options.logFile);
   const history = [];
   let autoFirstHandshakeSent = false;
+  let autoVesselAuthorizationSent = false;
+  let autoMathSentCount = 0;
 
   printBanner(options, logger.target);
 
@@ -363,7 +487,7 @@ async function main() {
     printInbound(parsed, raw);
 
     if (
-      options.autoFirstHandshake &&
+      options.autoHandshake &&
       !autoFirstHandshakeSent &&
       reconstructed
     ) {
@@ -379,6 +503,52 @@ async function main() {
             automated: true,
             automationKind: "first-handshake",
             matchedPrompt: reconstructed,
+          },
+        );
+      }
+    }
+
+    if (
+      options.autoHandshake &&
+      options.neonCode &&
+      !autoVesselAuthorizationSent &&
+      reconstructed &&
+      detectVesselAuthorizationPrompt(reconstructed)
+    ) {
+      autoVesselAuthorizationSent = true;
+      sendPayload(
+        JSON.stringify({
+          type: "enter_digits",
+          digits: `${options.neonCode}#`,
+        }),
+        {
+          automated: true,
+          automationKind: "vessel-authorization",
+          matchedPrompt: reconstructed,
+        },
+      );
+    }
+
+    if (options.autoHandshake && reconstructed) {
+      const expression = extractMathExpression(reconstructed);
+      if (expression) {
+        const result = evaluateMathExpression(expression);
+        const digits = reconstructed.includes("pound key")
+          ? `${result}#`
+          : String(result);
+        autoMathSentCount += 1;
+        sendPayload(
+          JSON.stringify({
+            type: "enter_digits",
+            digits,
+          }),
+          {
+            automated: true,
+            automationKind: "math",
+            matchedPrompt: reconstructed,
+            expression,
+            result,
+            sequence: autoMathSentCount,
           },
         );
       }
