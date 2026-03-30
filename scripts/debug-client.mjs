@@ -405,6 +405,10 @@ function chooseCrewManifestResponse(prompt, resumeProfile) {
     text = resumeProfile.education_summary;
   } else if (normalized.includes("work experience") || normalized.includes("experience")) {
     text = resumeProfile.experience_summary;
+  } else if (normalized.includes("best project")) {
+    text = resumeProfile.best_project_summary || resumeProfile.projects_summary;
+  } else if (normalized.includes("project")) {
+    text = resumeProfile.projects_summary;
   } else if (normalized.includes("projects")) {
     text = resumeProfile.projects_summary;
   }
