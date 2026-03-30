@@ -1,0 +1,4 @@
+node_modules/
+session-logs/
+.npm-cache/
+npm-debug.log*

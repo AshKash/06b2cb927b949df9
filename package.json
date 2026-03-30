@@ -1,0 +1,12 @@
+{
+  "name": "neonhealth-puzzle",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "debug-client": "node scripts/debug-client.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}
