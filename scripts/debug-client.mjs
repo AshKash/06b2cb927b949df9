@@ -389,32 +389,79 @@ function extractCharacterConstraint(prompt) {
   return null;
 }
 
+function classifyCrewManifestTopic(prompt) {
+  if (typeof prompt !== "string") {
+    return null;
+  }
+
+  const normalized = prompt.toLowerCase();
+
+  if (normalized.includes("summary") && normalized.includes("skills")) {
+    return "skills";
+  }
+
+  if (
+    normalized.includes("granted access to neon") ||
+    (normalized.includes("good fit") && normalized.includes("mission"))
+  ) {
+    return "mission-fit";
+  }
+
+  if (normalized.includes("recent deployment")) {
+    return "recent-deployment";
+  }
+
+  if (normalized.includes("education")) {
+    return "education";
+  }
+
+  if (normalized.includes("work experience") || normalized.includes("experience")) {
+    return "experience";
+  }
+
+  if (normalized.includes("best project")) {
+    return "best-project";
+  }
+
+  if (normalized.includes("project") || normalized.includes("projects")) {
+    return "projects";
+  }
+
+  return null;
+}
+
 function chooseCrewManifestResponse(prompt, resumeProfile) {
   if (typeof prompt !== "string" || !resumeProfile) {
     return null;
   }
 
   const normalized = prompt.toLowerCase();
+  const looksLikeResumePrompt =
+    normalized.includes("resume") ||
+    normalized.includes("crew manifest") ||
+    normalized.includes("manifest continued") ||
+    normalized.includes("manifest required");
+
+  if (!looksLikeResumePrompt) {
+    return null;
+  }
+
+  const topic = classifyCrewManifestTopic(prompt);
   let text = null;
 
-  if (normalized.includes("summary") && normalized.includes("skills")) {
+  if (topic === "skills") {
     text = resumeProfile.skills_summary;
-  } else if (
-    normalized.includes("granted access to neon") ||
-    (normalized.includes("good fit") && normalized.includes("mission"))
-  ) {
+  } else if (topic === "mission-fit") {
     text = resumeProfile.mission_fit_summary;
-  } else if (normalized.includes("recent deployment")) {
+  } else if (topic === "recent-deployment") {
     text = resumeProfile.recent_deployment_summary;
-  } else if (normalized.includes("education")) {
+  } else if (topic === "education") {
     text = resumeProfile.education_summary;
-  } else if (normalized.includes("work experience") || normalized.includes("experience")) {
+  } else if (topic === "experience") {
     text = resumeProfile.experience_summary;
-  } else if (normalized.includes("best project")) {
+  } else if (topic === "best-project") {
     text = resumeProfile.best_project_summary || resumeProfile.projects_summary;
-  } else if (normalized.includes("project")) {
-    text = resumeProfile.projects_summary;
-  } else if (normalized.includes("projects")) {
+  } else if (topic === "projects") {
     text = resumeProfile.projects_summary;
   }
 
@@ -483,6 +530,108 @@ function tokenizeWikipediaExtract(extract) {
     .split(/\s+/)
     .map((token) => token.replace(/^[“"'([{]+|[”"')\]}.,:;!?]+$/g, ""))
     .filter(Boolean);
+}
+
+function tokenizeResponseText(text) {
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replace(/^[“"'([{]+|[”"')\]}.,:;!?]+$/g, ""))
+    .filter(Boolean);
+}
+
+function parseFinalVerificationPrompt(prompt) {
+  if (typeof prompt !== "string") {
+    return null;
+  }
+
+  const normalized = prompt.toLowerCase();
+  if (
+    !normalized.includes("word") ||
+    (!normalized.includes("earlier") &&
+      !normalized.includes("previous") &&
+      !normalized.includes("prior") &&
+      !normalized.includes("last") &&
+      !normalized.includes("recent"))
+  ) {
+    return null;
+  }
+
+  const ordinalMatch = prompt.match(/\b(\d+)(?:st|nd|rd|th)\s+word\b/i);
+  if (!ordinalMatch) {
+    return null;
+  }
+
+  const ordinal = parseOrdinal(ordinalMatch[1]);
+  if (!ordinal) {
+    return null;
+  }
+
+  let recency = "latest";
+  if (normalized.includes("first")) {
+    recency = "first";
+  } else if (
+    normalized.includes("last") ||
+    normalized.includes("most recent") ||
+    normalized.includes("latest")
+  ) {
+    recency = "latest";
+  }
+
+  return {
+    ordinal,
+    recency,
+    topic: classifyCrewManifestTopic(prompt),
+  };
+}
+
+function getCrewManifestHistory(history) {
+  return history.filter(
+    (event) =>
+      event.direction === "outbound" &&
+      event.kind === "message" &&
+      event.parsed?.type === "speak_text" &&
+      event.automationKind === "crew-manifest" &&
+      typeof event.parsed.text === "string",
+  );
+}
+
+function getFinalVerificationWord(prompt, history) {
+  const parsed = parseFinalVerificationPrompt(prompt);
+  if (!parsed) {
+    return null;
+  }
+
+  let candidates = getCrewManifestHistory(history);
+  if (parsed.topic) {
+    candidates = candidates.filter(
+      (event) => classifyCrewManifestTopic(event.matchedPrompt) === parsed.topic,
+    );
+  }
+
+  if (candidates.length === 0) {
+    throw new Error(`No prior crew-manifest response available for final verification: ${prompt}`);
+  }
+
+  const chosen =
+    parsed.recency === "first" ? candidates[0] : candidates[candidates.length - 1];
+  const tokens = tokenizeResponseText(chosen.parsed.text);
+  const index = parsed.ordinal - 1;
+
+  if (index < 0 || index >= tokens.length) {
+    throw new Error(
+      `Requested word ${parsed.ordinal} out of range for final verification response with ${tokens.length} tokens`,
+    );
+  }
+
+  return {
+    ordinal: parsed.ordinal,
+    recency: parsed.recency,
+    topic: parsed.topic,
+    token: tokens[index],
+    sourceText: chosen.parsed.text,
+    tokenCount: tokens.length,
+  };
 }
 
 async function fetchWikipediaSummary(title, cache) {
@@ -596,6 +745,7 @@ async function main() {
   let autoMathSentCount = 0;
   let autoCrewSentCount = 0;
   let autoKnowledgeSentCount = 0;
+  let autoFinalVerificationSentCount = 0;
 
   printBanner(options, logger.target);
 
@@ -675,15 +825,30 @@ async function main() {
 
     printInbound(parsed, raw);
 
-    if (
-      options.autoHandshake &&
-      !autoFirstHandshakeSent &&
-      reconstructed
-    ) {
+    let handled = false;
+    const sendAutomatedPayload = (payload, metadata = {}) => {
+      if (handled) {
+        pushHistory({
+          timestamp: nowIso(),
+          direction: "local",
+          kind: "automation_skipped",
+          reason: "response already sent for this challenge",
+          attemptedAutomationKind: metadata.automationKind || "unknown",
+          matchedPrompt: reconstructed,
+        });
+        return false;
+      }
+
+      const sent = sendPayload(payload, metadata);
+      handled = sent;
+      return sent;
+    };
+
+    if (options.autoHandshake && !handled && !autoFirstHandshakeSent && reconstructed) {
       const firstHandshake = detectFirstHandshakeFrequency(reconstructed);
       if (firstHandshake) {
         autoFirstHandshakeSent = true;
-        sendPayload(
+        sendAutomatedPayload(
           JSON.stringify({
             type: "enter_digits",
             digits: firstHandshake.aiPilotFrequency,
@@ -699,13 +864,14 @@ async function main() {
 
     if (
       options.autoHandshake &&
+      !handled &&
       options.neonCode &&
       !autoVesselAuthorizationSent &&
       reconstructed &&
       detectVesselAuthorizationPrompt(reconstructed)
     ) {
       autoVesselAuthorizationSent = true;
-      sendPayload(
+      sendAutomatedPayload(
         JSON.stringify({
           type: "enter_digits",
           digits: `${options.neonCode}#`,
@@ -718,7 +884,7 @@ async function main() {
       );
     }
 
-    if (options.autoHandshake && reconstructed) {
+    if (options.autoHandshake && !handled && reconstructed) {
       const expression = extractMathExpression(reconstructed);
       if (expression) {
         try {
@@ -727,7 +893,7 @@ async function main() {
             ? `${result}#`
             : String(result);
           autoMathSentCount += 1;
-          sendPayload(
+          sendAutomatedPayload(
             JSON.stringify({
               type: "enter_digits",
               digits,
@@ -756,12 +922,49 @@ async function main() {
       }
     }
 
-    if (options.autoHandshake && reconstructed && resumeProfile) {
+    if (options.autoHandshake && !handled && reconstructed) {
+      try {
+        const verificationResponse = getFinalVerificationWord(reconstructed, history);
+        if (verificationResponse) {
+          autoFinalVerificationSentCount += 1;
+          sendAutomatedPayload(
+            JSON.stringify({
+              type: "speak_text",
+              text: verificationResponse.token,
+            }),
+            {
+              automated: true,
+              automationKind: "final-verification",
+              matchedPrompt: reconstructed,
+              ordinal: verificationResponse.ordinal,
+              recency: verificationResponse.recency,
+              topic: verificationResponse.topic,
+              token: verificationResponse.token,
+              tokenCount: verificationResponse.tokenCount,
+              sourceText: verificationResponse.sourceText,
+              sequence: autoFinalVerificationSentCount,
+            },
+          );
+        }
+      } catch (error) {
+        pushHistory({
+          timestamp: nowIso(),
+          direction: "local",
+          kind: "automation_error",
+          automationKind: "final-verification",
+          matchedPrompt: reconstructed,
+          error: error.message,
+        });
+        console.error(`\nFinal verification automation failed: ${error.message}`);
+      }
+    }
+
+    if (options.autoHandshake && !handled && reconstructed && resumeProfile) {
       try {
         const crewResponse = chooseCrewManifestResponse(reconstructed, resumeProfile);
         if (crewResponse) {
           autoCrewSentCount += 1;
-          sendPayload(
+          sendAutomatedPayload(
             JSON.stringify({
               type: "speak_text",
               text: crewResponse,
@@ -787,7 +990,7 @@ async function main() {
       }
     }
 
-    if (options.autoHandshake && reconstructed) {
+    if (options.autoHandshake && !handled && reconstructed) {
       try {
         const knowledgeResponse = await getKnowledgeArchiveWord(
           reconstructed,
@@ -795,7 +998,7 @@ async function main() {
         );
         if (knowledgeResponse) {
           autoKnowledgeSentCount += 1;
-          sendPayload(
+          sendAutomatedPayload(
             JSON.stringify({
               type: "speak_text",
               text: knowledgeResponse.token,
