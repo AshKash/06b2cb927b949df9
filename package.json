@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "debug-client": "node scripts/debug-client.mjs"
+    "debug-client": "node scripts/debug-client.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "ws": "^8.18.3"

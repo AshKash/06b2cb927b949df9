@@ -8,6 +8,12 @@ Install dependencies:
 npm install --cache .npm-cache
 ```
 
+Run tests:
+
+```bash
+npm test
+```
+
 The client loads `.env` from the repo root automatically.
 
 Example `.env`:
@@ -56,6 +62,13 @@ Behavior:
 - Loads a resume profile JSON for crew-manifest prompts
 - Tracks a sanitized [resume-profile.json](/Users/ashwin/repos/interviews/neonhealth/resume-profile.json) example and keeps local personal data in ignored `resume-profile.local.json`
 - Can auto-answer the full known challenge deterministically when `--auto-handshake` is enabled
+
+Code layout:
+
+- [src/protocol.mjs](/Users/ashwin/repos/interviews/neonhealth/src/protocol.mjs) contains prompt parsing, tokenization, and pure protocol helpers
+- [src/automation.mjs](/Users/ashwin/repos/interviews/neonhealth/src/automation.mjs) contains the deterministic response router and session state
+- [src/debug-client.mjs](/Users/ashwin/repos/interviews/neonhealth/src/debug-client.mjs) contains websocket and REPL wiring
+- [test/protocol.test.mjs](/Users/ashwin/repos/interviews/neonhealth/test/protocol.test.mjs) and [test/automation.test.mjs](/Users/ashwin/repos/interviews/neonhealth/test/automation.test.mjs) cover the main parsing and routing paths
 
 Deterministic coverage:
 
