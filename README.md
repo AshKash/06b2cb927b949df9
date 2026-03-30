@@ -26,7 +26,6 @@ NEON_NAME=Your Name
 NEON_EMAIL=you@example.com
 NEON_PHONE=555-555-5555
 NEON_RESUME_PROFILE_PATH=resume-profile.local.json
-NEON_AUTO_HANDSHAKE=1
 ```
 
 Run the interactive websocket client:
@@ -34,21 +33,6 @@ Run the interactive websocket client:
 ```bash
 npm run debug-client
 ```
-
-Optional flag:
-
-```bash
-npm run debug-client -- --auto-handshake
-```
-
-Interactive commands:
-
-- `/help`
-- `/send {"type":"enter_digits","digits":"123#"}`
-- `/digits 123#`
-- `/speak hello world`
-- `/history`
-- `/exit`
 
 Behavior:
 
@@ -59,7 +43,8 @@ Behavior:
 - Loads websocket URL and origin from `.env`
 - Loads a resume profile JSON for crew-manifest prompts
 - Tracks a sanitized [resume-profile.json](/Users/ashwin/repos/interviews/neonhealth/resume-profile.json) example and keeps local personal data in ignored `resume-profile.local.json`
-- Can auto-answer the full known challenge deterministically when `--auto-handshake` is enabled
+- Runs as a non-interactive agent client
+- Auto-answers the full known challenge deterministically by default
 
 Code layout:
 
@@ -80,7 +65,7 @@ Deterministic coverage:
 Current observation:
 
 - A direct websocket connect to `wss://neonhealth.software/agent-puzzle/challenge` succeeded with only the `Origin: https://puzzle.neonhealth.com` header and immediately returned a challenge frame.
-- The first checkpoint is stable in wording but randomizes the two frequencies, so `--auto-handshake` extracts and returns the AI-co-pilot frequency.
+- The first checkpoint is stable in wording but randomizes the two frequencies, so the client extracts and returns the AI-co-pilot frequency automatically.
 - The second deterministic checkpoint asks for the vessel authorization code followed by `#`, which the client answers from `NEON_CODE`.
 - Crew-manifest prompts are answered deterministically from the configured resume profile JSON.
 - Final verification is answered from the exact prior `speak_text` responses stored in session history.

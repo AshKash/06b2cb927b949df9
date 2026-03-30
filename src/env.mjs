@@ -43,16 +43,10 @@ export function parseArgs(argv) {
       phone: process.env.NEON_PHONE || "",
     },
     resumeProfilePath: process.env.NEON_RESUME_PROFILE_PATH || "",
-    autoHandshake: process.env.NEON_AUTO_HANDSHAKE === "1",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-
-    if (arg === "--auto-handshake") {
-      options.autoHandshake = true;
-      continue;
-    }
 
     if (arg === "--help") {
       return { ...options, help: true };
