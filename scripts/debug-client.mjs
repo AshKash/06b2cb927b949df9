@@ -321,15 +321,12 @@ function extractMathExpression(prompt) {
     ? prompt.slice(prompt.lastIndexOf(":") + 1).trim()
     : prompt.trim();
 
-  const exactMatch = afterColon.match(
-    /(Math\.floor\([^]+?\)(?:\s*[%+\-*/]\s*\d+)*)\s*$/u,
-  );
-  if (exactMatch) {
-    return exactMatch[1];
+  if (/^[\d\s()+\-*/%.A-Za-z]+$/u.test(afterColon)) {
+    return afterColon;
   }
 
   const fallback = prompt.match(
-    /(Math\.floor\([^]+?\)(?:\s*[%+\-*/]\s*\d+)*)/u,
+    /(\(?Math\.floor\([^]+?\)(?:\s*[%+\-*/]\s*\(?\d+[)\d\s+\-*/%]*)*)/u,
   );
   return fallback ? fallback[1] : null;
 }
@@ -532,25 +529,38 @@ async function main() {
     if (options.autoHandshake && reconstructed) {
       const expression = extractMathExpression(reconstructed);
       if (expression) {
-        const result = evaluateMathExpression(expression);
-        const digits = reconstructed.includes("pound key")
-          ? `${result}#`
-          : String(result);
-        autoMathSentCount += 1;
-        sendPayload(
-          JSON.stringify({
-            type: "enter_digits",
-            digits,
-          }),
-          {
-            automated: true,
+        try {
+          const result = evaluateMathExpression(expression);
+          const digits = reconstructed.includes("pound key")
+            ? `${result}#`
+            : String(result);
+          autoMathSentCount += 1;
+          sendPayload(
+            JSON.stringify({
+              type: "enter_digits",
+              digits,
+            }),
+            {
+              automated: true,
+              automationKind: "math",
+              matchedPrompt: reconstructed,
+              expression,
+              result,
+              sequence: autoMathSentCount,
+            },
+          );
+        } catch (error) {
+          pushHistory({
+            timestamp: nowIso(),
+            direction: "local",
+            kind: "automation_error",
             automationKind: "math",
             matchedPrompt: reconstructed,
             expression,
-            result,
-            sequence: autoMathSentCount,
-          },
-        );
+            error: error.message,
+          });
+          console.error(`\nMath automation failed: ${error.message}`);
+        }
       }
     }
 
